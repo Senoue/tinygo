@@ -22,17 +22,12 @@
 
 MEMORY
 {
-    /* Low HP-SRAM: never touched by the ROM loader. Used for NOLOAD
-     * sections (stack, bss) and the heap.
+    /* HP-SRAM, up to the end of the range the ROM bootloader is known to
+     * load images into (the ESP-IDF second-stage bootloader is linked up to
+     * 0x4085A5A0; above that the ROM keeps its own stack and data while
+     * loading). The heap extends beyond this region at runtime — see below.
      */
-    RAM (rw) : ORIGIN = 0x40800000, LENGTH = 0x4BBA0
-
-    /* ROM-loadable region: the same address range the ESP-IDF second-stage
-     * bootloader is linked into (iram_seg + iram_loader_seg + dram_seg,
-     * 0x4084BBA0..0x4085A5A0). Loading segments elsewhere (e.g. low SRAM)
-     * makes the eco3 ROM loader crash.
-     */
-    LOADRAM (rwx) : ORIGIN = 0x4084BBA0, LENGTH = 0xEA00
+    SRAM (rwx) : ORIGIN = 0x40800000, LENGTH = 0x5A5A0
 }
 
 /* The entry point. It is set in the image flashed to the chip, so must be
@@ -51,7 +46,7 @@ SECTIONS
         . = ALIGN(16);
         . += _stack_size;
         _stack_top = .;
-    } >RAM
+    } >SRAM
 
     /* Global variables that are mutable and zero-initialized.
      * These must be zeroed at startup (unlike data, which is loaded by the
@@ -65,12 +60,9 @@ SECTIONS
         *(.bss .bss.*)
         . = ALIGN (4);
         _ebss = ABSOLUTE(.);
-    } >RAM
+    } >SRAM
 
-    /* Heap: the rest of low SRAM, up to the ROM-loadable region. */
-    . = ALIGN(4);
-    _heap_start = ABSOLUTE(.);
-    _heap_end = ORIGIN(RAM) + LENGTH(RAM);
+
 
     /* Mutable global variables. This data (in the SRAM segment) is
      * initialized by the ROM bootloader.
@@ -84,7 +76,7 @@ SECTIONS
         *(.dram*)
         . = ALIGN (4);
         _edata = ABSOLUTE(.);
-    } >LOADRAM
+    } >SRAM
 
     /* All code. Loaded into SRAM by the ROM bootloader.
      * The vector table must be 256-byte aligned (the CLIC mtvec base is
@@ -100,7 +92,7 @@ SECTIONS
         *(.text.exception_vectors)
         *(.text .text.*)
         . = ALIGN (4);
-    } > LOADRAM
+    } > SRAM
 
     /* Constant global variables. */
     .rodata : ALIGN(4)
@@ -108,7 +100,15 @@ SECTIONS
         *(.rodata*)
         *(.srodata*)
         . = ALIGN (4);
-    } >LOADRAM
+    } >SRAM
+
+    /* Heap: everything after the loaded sections. The area above the load
+     * region (used by the ROM bootloader while loading) is free once the
+     * application runs, so the heap extends to the end of HP-SRAM.
+     */
+    . = ALIGN(4);
+    _heap_start = ABSOLUTE(.);
+    _heap_end = 0x40860000;
 
     /DISCARD/ :
     {
