@@ -1157,6 +1157,9 @@ func flashBinUsingEsp32(port, resetMode, tmppath string, options *compileopts.Op
 	offset := uint32(0x0)
 	if chipName == "ESP32" {
 		offset = 0x1000
+	} else if chipName == "ESP32-C5" {
+		// The ESP32-C5 ROM loads the bootloader image from flash offset 0x2000.
+		offset = 0x2000
 	}
 
 	// Read the firmware binary

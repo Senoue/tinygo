@@ -171,6 +171,7 @@ func makeESPFirmwareImage(infile, outfile, format string) error {
 	chip_id := map[string]uint16{
 		"esp32":   0x0000,
 		"esp32c3": 0x0005,
+		"esp32c5": 0x0017,
 		"esp32c6": 0x000d,
 		"esp32s3": 0x0009,
 	}[chip]
@@ -182,39 +183,55 @@ func makeESPFirmwareImage(infile, outfile, format string) error {
 	spiSpeedSize := map[string]uint8{
 		"esp32":   0x1f, // 80MHz=0x0F, 2MB=0x10
 		"esp32c3": 0x1f, // 80MHz=0x0F, 2MB=0x10
+		"esp32c5": 0x1f, // 80MHz=0x0F, 2MB=0x10 (esptool esp32c5: 80m=0xF)
 		"esp32c6": 0x10, // 80MHz=0x00, 2MB=0x10 (C6 uses different freq encoding)
 		"esp32s3": 0x1f, // 80MHz=0x0F, 2MB=0x10
 	}[chip]
 
 	// Image header.
 	switch chip {
-	case "esp32", "esp32c3", "esp32s3", "esp32c6":
+	case "esp32", "esp32c3", "esp32s3", "esp32c5", "esp32c6":
 		// Header format:
 		// https://github.com/espressif/esp-idf/blob/v4.3/components/bootloader_support/include/esp_app_format.h#L71
 		// Note: not adding a SHA256 hash as the binary is modified by
 		// esptool.py while flashing and therefore the hash won't be valid
 		// anymore.
+		// Maximum accepted chip revision (major*100+minor format). The ROM
+		// bootloader refuses to load an image when the chip revision is
+		// higher than max_chip_rev_full. Newer chips such as the ESP32-C5
+		// ship with silicon revision v1.0, so the field must not be left at
+		// zero there.
+		var minChipRevFull, maxChipRevFull uint16
+		if chip == "esp32c5" {
+			// Same values as ESP-IDF uses for the C5 (silicon is v1.x).
+			minChipRevFull = 100
+			maxChipRevFull = 199
+		}
 		binary.Write(outf, binary.LittleEndian, struct {
-			magic          uint8
-			segment_count  uint8
-			spi_mode       uint8
-			spi_speed_size uint8
-			entry_addr     uint32
-			wp_pin         uint8
-			spi_pin_drv    [3]uint8
-			chip_id        uint16
-			min_chip_rev   uint8
-			reserved       [8]uint8
-			hash_appended  bool
+			magic             uint8
+			segment_count     uint8
+			spi_mode          uint8
+			spi_speed_size    uint8
+			entry_addr        uint32
+			wp_pin            uint8
+			spi_pin_drv       [3]uint8
+			chip_id           uint16
+			min_chip_rev      uint8
+			min_chip_rev_full uint16
+			max_chip_rev_full uint16
+			reserved          [4]uint8
+			hash_appended     bool
 		}{
-			magic:          0xE9,
-			segment_count:  byte(len(segments)),
-			spi_mode:       2, // ESP_IMAGE_SPI_MODE_DIO
-			spi_speed_size: spiSpeedSize,
-			entry_addr:     uint32(inf.Entry),
-			wp_pin:         0xEE, // disable WP pin
-			chip_id:        chip_id,
-			hash_appended:  true, // add a SHA256 hash
+			magic:             0xE9,
+			segment_count:     byte(len(segments)),
+			spi_mode:          2, // ESP_IMAGE_SPI_MODE_DIO
+			spi_speed_size:    spiSpeedSize,
+			entry_addr:        uint32(inf.Entry),
+			wp_pin:            0xEE, // disable WP pin
+			chip_id:           chip_id,
+			min_chip_rev_full: minChipRevFull,
+			max_chip_rev_full: maxChipRevFull,
+			hash_appended:     true, // add a SHA256 hash
 		})
 	case "esp8266":
 		// Header format:

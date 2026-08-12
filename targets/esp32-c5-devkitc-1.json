@@ -1,0 +1,4 @@
+{
+	"inherits": ["esp32c5"],
+	"build-tags": ["esp32_c5_devkitc_1"]
+}
