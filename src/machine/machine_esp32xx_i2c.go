@@ -1,4 +1,4 @@
-//go:build (esp32c3 || esp32c6 || esp32s3) && !m5stamp_c3
+//go:build (esp32c3 || esp32c5 || esp32c6 || esp32s3) && !m5stamp_c3
 
 package machine
 
@@ -75,13 +75,13 @@ func (i2c *I2C) initNoiseFilter() {
 //go:inline
 func (i2c *I2C) initPins(config I2CConfig) {
 	config.SDA.configure(PinConfig{Mode: PinOutput}, i2c.funcSDA)
-	inFunc(i2c.funcSDA).Set(esp.GPIO_FUNC_IN_SEL_CFG_SEL | uint32(config.SDA)<<esp.GPIO_FUNC_IN_SEL_CFG_IN_SEL_Pos)
+	inFunc(i2c.funcSDA).Set(gpioInSelRoute | uint32(config.SDA)<<gpioInSelPos)
 	config.SDA.Set(true)
 	config.SDA.pinReg().SetBits(esp.GPIO_PIN_PAD_DRIVER)
 	i2c.Bus.SetCTR_SDA_FORCE_OUT(1)
 
 	config.SCL.configure(PinConfig{Mode: PinOutput}, i2c.funcSCL)
-	inFunc(i2c.funcSCL).Set(esp.GPIO_FUNC_IN_SEL_CFG_SEL | uint32(config.SCL)<<esp.GPIO_FUNC_IN_SEL_CFG_IN_SEL_Pos)
+	inFunc(i2c.funcSCL).Set(gpioInSelRoute | uint32(config.SCL)<<gpioInSelPos)
 	config.SCL.Set(true)
 	// Configure the pad with the given IO mux configuration.
 	config.SCL.pinReg().SetBits(esp.GPIO_PIN_PAD_DRIVER)

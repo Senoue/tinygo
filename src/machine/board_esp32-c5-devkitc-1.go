@@ -22,11 +22,13 @@ const (
 	BUTTON = GPIO28
 )
 
-// I2C pins: the board has no dedicated I2C header, these are free GPIOs
-// commonly used for I2C in Espressif examples.
+// I2C pins: the board has no dedicated I2C header; GPIO0/GPIO1 are free,
+// adjacent on the J1 header, and not strapping pins. (Avoid GPIO2/MTMS:
+// it selects the XTAL frequency at boot, and I2C modules with pull-ups
+// would interfere.)
 const (
-	SDA_PIN = GPIO2
-	SCL_PIN = GPIO3
+	SDA_PIN = GPIO0
+	SCL_PIN = GPIO1
 )
 
 // UART0 pins (routed to the UART bridge / UART port of the board).

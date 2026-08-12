@@ -215,21 +215,18 @@ func handleInterrupt() {
 		// the source (e.g. TIMG0.INT_CLR_TIMERS). No CLIC-side acknowledge is
 		// needed.
 
-		// Enable CPU interrupts. While this interrupt is being handled the
-		// CLIC runs at this interrupt's level (mintstatus.mil), so only
-		// higher-level interrupts can preempt us. All interrupts registered
-		// through this package share the same level, so no nesting occurs
-		// among them.
-		riscv.MSTATUS.SetBits(riscv.MSTATUS_MIE)
+		// Keep CPU interrupts disabled while the handler runs. Unlike the
+		// C3/C6 ports, interrupts are NOT re-enabled here: the Espressif
+		// CLIC does not appear to raise the running interrupt level for
+		// non-vectored interrupts, so enabling MSTATUS.MIE mid-handler
+		// allows immediate same-level re-entry (e.g. from a bouncing button)
+		// and corrupts the saved MSTATUS/MEPC/MCAUSE state.
 
 		// Call registered interrupt handler(s).
 		callHandler(int(interruptNumber - clicExtIntrNumOffset))
 
 		// Signal to sleepTicks that an interrupt has occurred.
 		signalInterrupt()
-
-		// Disable CPU interrupts.
-		riscv.MSTATUS.ClearBits(riscv.MSTATUS_MIE)
 
 		// Zero MCAUSE so that interrupt.In() returns false once we return to
 		// normal (non-interrupt) code. On mret the hardware restores the
