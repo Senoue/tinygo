@@ -131,7 +131,7 @@ _globals_start = _sbss;
 _globals_end = _edata;
 
 /* Default stack size. */
-_stack_size = 4K;
+_stack_size = 16K;
 
 /* ROM function addresses for ESP32-C5.
  * Source: ESP-IDF components/esp_rom/esp32c5/ld/esp32c5.rom.ld

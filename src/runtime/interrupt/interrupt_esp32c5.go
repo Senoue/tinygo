@@ -67,15 +67,10 @@ func (i Interrupt) Enable() error {
 	if i.num < 1 || i.num > 31 {
 		return errors.New("interrupt for ESP32-C5 must be in range of 1 through 31")
 	}
-	// TEMPORARY DEBUG: interrupt delivery is under investigation on the
-	// ESP32-C5; leave the CLIC untouched so nothing fires. Timekeeping
-	// still works because sleepTicks polls the timer as a fallback.
-	if true {
-		return nil
-	}
-
+	// Note: no defer here. Enable is called from the runtime before the
+	// scheduler has started (initTimerInterrupt), and the defer machinery
+	// needs the current task, which is still nil at that point.
 	mask := riscv.DisableInterrupts()
-	defer riscv.EnableInterrupts(mask)
 
 	line := int(i.num) + clicExtIntrNumOffset
 
@@ -87,6 +82,7 @@ func (i Interrupt) Enable() error {
 	clicIntIEReg(line).Set(1)
 
 	riscv.Asm("fence")
+	riscv.EnableInterrupts(mask)
 	return nil
 }
 

@@ -48,10 +48,9 @@ _vector_table:
 //
 // Unlike mtvec, the mtvt table contains function POINTERS (one .word per
 // CLIC line), not jump instructions. The Espressif CLIC fetches the handler
-// address from mtvt + 4*line when delivering an interrupt, so this table
-// must be valid even in nominally non-vectored configurations. All 48 lines
-// point at the common assembly handler; the Go dispatcher reads mcause to
-// find the actual line.
+// address from mtvt + 4*line when delivering a hardware-vectored interrupt,
+// so this table must be valid. All 48 lines point at the common assembly
+// handler; the Go dispatcher reads mcause to find the actual line.
 .global _mtvt_table
 .type _mtvt_table,@object
 

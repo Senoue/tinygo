@@ -20,8 +20,8 @@ func main() {
 	// * It disables all watchdog timers. They might be useful at some point in
 	//   the future, but will need integration into the scheduler. For now,
 	//   they're all disabled.
-	// * It sets the CPU frequency to 240MHz, which is the maximum speed allowed
-	//   for this CPU.
+	// * The CPU keeps the ROM's default clock configuration (PLL_F160M,
+	//   160MHz).
 
 	// Disable Timer Group 0 watchdog (unlock first).
 	esp.TIMG0.WDTWPROTECT.Set(0x50D83AA1)
@@ -39,22 +39,14 @@ func main() {
 	esp.LP_WDT.SWD_WPROTECT.Set(0x50D83AA1)
 	esp.LP_WDT.SetSWD_CONFIG_SWD_DISABLE(1)
 
-	// Change CPU frequency to 240MHz.
+	// The CPU is left at the ROM's default clock configuration: PLL_F160M
+	// (160MHz), AHB/APB at their default dividers.
 	//
-	// Unlike the ESP32-C6, the C5 does not divide the SPLL directly: the CPU
-	// clock selects one of the fixed PLL taps (PLL_F160M or PLL_F240M). The
-	// sequence below follows rtc_clk_cpu_freq_to_pll_240_mhz in ESP-IDF:
-	//   CPU  = PLL_F240M / (CPU_DIV_NUM+1)  = 240 / 1 = 240 MHz
-	//   AHB  = PLL_F240M / (AHB_DIV_NUM+1)  = 240 / 6 =  40 MHz
-	//   SOC_CLK_SEL: 0=XTAL, 1=RC_FAST, 2=PLL_F160M, 3=PLL_F240M
-	esp.PCR.SetCPU_FREQ_CONF_CPU_DIV_NUM(0)
-	esp.PCR.SetAHB_FREQ_CONF_AHB_DIV_NUM(5)
-	esp.PCR.SetSYSCLK_CONF_SOC_CLK_SEL(3)
-
-	// Commit the new clock configuration and wait for it to take effect.
-	esp.PCR.SetBUS_CLK_UPDATE_BUS_CLOCK_UPDATE(1)
-	for esp.PCR.GetBUS_CLK_UPDATE_BUS_CLOCK_UPDATE() != 0 {
-	}
+	// TODO: switching to the PLL_F240M tap (SOC_CLK_SEL=3, CPU_DIV_NUM=0,
+	// AHB_DIV_NUM=5, then the BUS_CLK_UPDATE handshake, following ESP-IDF's
+	// rtc_clk_cpu_freq_to_pll_240_mhz) makes the CPU run at 240MHz but
+	// breaks the USB-Serial-JTAG console (output stops / corrupts). The USB
+	// PHY clock most likely needs additional PCR configuration first.
 
 	// Select the Timer Group 0 timer clock source.
 	//
@@ -112,6 +104,13 @@ const mtvt = riscv.CSR(0x307)
 
 // interruptInit initializes the CLIC interrupt controller.
 func interruptInit() {
+	// The ROM bootloader leaves MCAUSE nonzero on the ESP32-C5. The runtime
+	// uses MCAUSE to detect "in interrupt" context (e.g. the alloc-in-
+	// interrupt guard), so a stale value makes the very first allocation
+	// panic — and the panic machinery allocates, recursing until the stack
+	// overflows. Clear it explicitly.
+	riscv.MCAUSE.Set(0)
+
 	// Set the number of level bits (MNLBITS, bits [3:0]) to 3, giving 8
 	// priority levels. This matches ESP-IDF and esp-hal (NLBITS = 3).
 	clicIntConfig.ReplaceBits(3, 0xf, 0)
@@ -249,6 +248,17 @@ func exit(code int) {
 }
 
 func putchar(c byte) {
+	if machine.Serial == nil {
+		// Early boot: machine.Serial is not initialized yet (InitSerial runs
+		// as a package initializer). Write the USB-Serial-JTAG FIFO directly
+		// so early panics remain visible instead of recursing through a nil
+		// interface call.
+		if esp.USB_DEVICE.GetEP1_CONF_SERIAL_IN_EP_DATA_FREE() != 0 {
+			esp.USB_DEVICE.EP1.Set(uint32(c))
+			esp.USB_DEVICE.SetEP1_CONF_WR_DONE(1)
+		}
+		return
+	}
 	machine.Serial.WriteByte(c)
 }
 

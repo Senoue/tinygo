@@ -78,14 +78,11 @@ func (usbdev *USB_DEVICE) Configure(config UARTConfig) error {
 	}
 	usbConfigured = true
 
-	// Enable the USB_DEVICE peripheral clock via PCR.
-	esp.PCR.SetUSB_DEVICE_CONF_USB_DEVICE_CLK_EN(1)
-	esp.PCR.SetUSB_DEVICE_CONF_USB_DEVICE_RST_EN(0)
-
-	// Ensure internal PHY is selected and USB pads are enabled.
-	usbdev.Bus.SetCONF0_PHY_SEL(0)
-	usbdev.Bus.SetCONF0_USB_PAD_ENABLE(1)
-	usbdev.Bus.SetCONF0_DP_PULLUP(1)
+	// The ROM has already fully configured the USB-Serial-JTAG controller
+	// (clock, PHY, pads) — it is the console and flashing interface. Do not
+	// reconfigure CONF0 here: rewriting PHY/pad settings while the link is
+	// up breaks the USB connection (including the DTR/RTS reset path used
+	// for flashing). Only set up the RX interrupt below.
 
 	// Clear any pending interrupts.
 	usbdev.Bus.INT_CLR.Set(0xFFFFFFFF)

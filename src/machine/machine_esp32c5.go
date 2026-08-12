@@ -23,7 +23,7 @@ const clicExtIntrNumOffset = 16
 // CPUFrequency returns the current CPU frequency of the chip.
 // Currently it is a fixed frequency but it may allow changing in the future.
 func CPUFrequency() uint32 {
-	return 240e6 // 240MHz
+	return 160e6 // 160MHz (ROM default: PLL_F160M)
 }
 
 const (
